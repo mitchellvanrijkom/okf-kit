@@ -17,6 +17,7 @@ readable by an agent so it can drive the tool for you.
 - [11. Environment variables](#11-environment-variables)
 - [12. Troubleshooting](#12-troubleshooting)
 - [13. For your agent / LLM](#13-for-your-agent)
+- [14. Worked example — both paths, validated](#14-worked-example)
 
 ---
 
@@ -358,3 +359,61 @@ You do not have to type CLI commands. Install the bundled skills (see the repo `
 
 That loop needs **no** model key — it is plain file reading. Only *building* the base (`structure`)
 uses a model.
+
+---
+
+## 14. Worked example — both paths, validated
+
+Two neutral source files in `raw/` (a messy standup note + a short decision). Both produce paths
+below were run for real; the outputs are verbatim. Copy them and expect the same shape.
+
+### Path A — standalone provider (no key)
+
+```bash
+okfkit structure --provider claude --raw raw --kb kb   # drives your local `claude` CLI; no token
+```
+```
+[structure] 2 source(s) -> 7 concept(s) (provider=claude)
+```
+```bash
+okfkit index --kb kb && okfkit link --kb kb && okfkit validate --kb kb
+```
+```
+[index] 2 index.md geschreven (7 concepten)
+[link] 7 concepten gelinkt (mutual top-5 op gedeelde tags)
+✅ All files are OKF-conformant.
+OKF status: {'conformant': 7, 'partial': 0, 'non_conformant': 0}
+```
+
+### Path B — agent harness (via the `okf-build` skill)
+
+Say to your agent (Claude Code / opencode): **"build a knowledge base from `raw/`"**. The agent reads
+`raw/`, writes the OKF concepts itself — no subprocess, no `claude -p`, no key — then runs the
+deterministic steps. Real result on the same sources:
+
+```
+(agent writes 6 concept files to kb/concepts/)
+[index] 2 index.md geschreven (6 concepten)
+[link] 6 concepten gelinkt (mutual top-5 op gedeelde tags)
+✅ All files are OKF-conformant.
+OKF status: {'conformant': 6, 'partial': 0, 'non_conformant': 0}
+```
+
+The two paths differ only in *who* runs the model (a spawned CLI worker vs the agent you're already
+talking to). Both write the same kind of OKF concepts.
+
+### Then ask it (progressive disclosure, no model)
+
+```bash
+okfkit navigate --kb kb "how do we prevent duplicate orders on retry?"
+```
+```
+── STAP 2: gekozen voor "how do we prevent duplicate orders on retry?" ──
+  concepts/idempotency  —  Making retried requests safe so they never create duplicate orders.
+── STAP 4: volg links ──
+  → /concepts/retry-policy.md
+  → /concepts/idempotency-key-on-orders.md
+```
+
+Or, in your agent, just ask the **`okf-ask`** skill in plain language — it reads the index, opens the
+right concept, and follows the links, citing the files it used.
