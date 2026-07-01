@@ -115,25 +115,46 @@ Source file: %s
 Only the JSON array."""
 
 
-def _llm_complete(prompt: str, model: str) -> str:
-    """One completion against an OpenAI-compatible endpoint. Keys come from env, never the repo.
-    Split out so tests can monkeypatch it without a network call."""
+def _llm_complete(prompt: str, model: str, provider: str) -> str:
+    """One completion. Providers, in order of "no token needed":
+      claude   -> your local Claude Code CLI (`claude -p`); uses your existing login, no key
+      opencode -> the `opencode` CLI (e.g. GitHub Copilot backend); no key in okf-kit
+      openai   -> any OpenAI-compatible endpoint; key from env (OKFKIT_API_KEY / OKFKIT_BASE_URL)
+    Split out so tests can monkeypatch it without spawning anything."""
+    import shutil
+    import subprocess
+    if provider == "claude":
+        if not shutil.which("claude"):
+            sys.exit("provider 'claude' needs the Claude Code CLI (`claude`) on PATH")
+        cmd = ["claude", "-p"] + (["--model", model] if model else [])
+        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True)
+        if r.returncode:
+            sys.exit(f"`claude -p` failed: {r.stderr[:400]}")
+        return r.stdout
+    if provider == "opencode":
+        if not shutil.which("opencode"):
+            sys.exit("provider 'opencode' needs the `opencode` CLI on PATH")
+        r = subprocess.run(["opencode", "run", prompt], capture_output=True, text=True)
+        if r.returncode:
+            sys.exit(f"`opencode run` failed: {r.stderr[:400]}")
+        return r.stdout
+    # openai-compatible endpoint (only path that needs a key)
     try:
         from openai import OpenAI
     except ImportError:
-        sys.exit("`structure` needs the llm extra:  uv sync --extra llm   (or: pip install openai)")
+        sys.exit("provider 'openai' needs the llm extra:  uv sync --extra llm")
     key = os.environ.get("OKFKIT_API_KEY")
     if not key:
-        sys.exit("set OKFKIT_API_KEY (and optionally OKFKIT_BASE_URL for a gateway) in your env")
+        sys.exit("provider 'openai' needs OKFKIT_API_KEY (and optionally OKFKIT_BASE_URL) in env")
     base = os.environ.get("OKFKIT_BASE_URL")
     client = OpenAI(base_url=base, api_key=key) if base else OpenAI(api_key=key)
     resp = client.chat.completions.create(
-        model=model, temperature=0.2, messages=[{"role": "user", "content": prompt}])
+        model=model or "gpt-4o-mini", temperature=0.2, messages=[{"role": "user", "content": prompt}])
     return resp.choices[0].message.content or ""
 
 
-def _structure_one(text: str, fname: str, model: str) -> list[dict]:
-    raw = _llm_complete(STRUCTURE_PROMPT % (fname, text[:12000]), model).strip()
+def _structure_one(text: str, fname: str, model: str, provider: str) -> list[dict]:
+    raw = _llm_complete(STRUCTURE_PROMPT % (fname, text[:12000]), model, provider).strip()
     raw = re.sub(r"^```(?:json)?\n?|\n?```$", "", raw).strip()
     data = json.loads(raw)
     return data if isinstance(data, list) else [data]
@@ -148,7 +169,7 @@ def cmd_structure(args) -> int:
         return 1
     total = 0
     for src in sources:
-        for c in _structure_one(src.read_text(encoding="utf-8"), src.name, args.model):
+        for c in _structure_one(src.read_text(encoding="utf-8"), src.name, args.model, args.provider):
             meta = {"type": c.get("type", "Note"), "title": c.get("title", "untitled"),
                     "description": c.get("description", ""),
                     "resource": str(src.relative_to(raw_dir.parent) if raw_dir.parent in src.parents else src),
@@ -158,7 +179,7 @@ def cmd_structure(args) -> int:
             (kb / "concepts").mkdir(exist_ok=True)
             (kb / "concepts" / f"{slug}.md").write_text(fm + "\n" + c.get("body", "").strip() + "\n", encoding="utf-8")
             total += 1
-    print(f"[structure] {len(sources)} source(s) -> {total} concept(s) (model={args.model})")
+    print(f"[structure] {len(sources)} source(s) -> {total} concept(s) (provider={args.provider})")
     return 0
 
 
@@ -316,7 +337,10 @@ def main() -> int:
             sp.add_argument("query")
         if extra == "structure":
             sp.add_argument("--raw", default="raw")
-            sp.add_argument("--model", default=os.environ.get("OKFKIT_MODEL", "gpt-4o-mini"))
+            sp.add_argument("--provider", choices=["claude", "opencode", "openai"],
+                            default=os.environ.get("OKFKIT_PROVIDER", "claude"),
+                            help="LLM backend. claude/opencode need no API key; openai reads env.")
+            sp.add_argument("--model", default=os.environ.get("OKFKIT_MODEL"))
         sp.set_defaults(func=fn)
     args = p.parse_args()
     return args.func(args)

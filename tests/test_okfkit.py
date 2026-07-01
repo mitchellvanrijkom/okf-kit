@@ -141,9 +141,9 @@ class TestCommands(unittest.TestCase):
         (raw / "note.md").write_text("meeting braindump: idempotency matters for retries\n", encoding="utf-8")
         canned = '[{"type":"Concept","title":"Idempotency","description":"Safe to repeat.","tags":["reliability"],"body":"# Idempotency\\nBody."}]'
         orig = okfkit._llm_complete
-        okfkit._llm_complete = lambda prompt, model: canned
+        okfkit._llm_complete = lambda *a, **k: canned  # no CLI / no key in the test
         try:
-            rc, _ = self.run_cmd(okfkit.cmd_structure, raw=str(raw), model="mock")
+            rc, _ = self.run_cmd(okfkit.cmd_structure, raw=str(raw), model=None, provider="claude")
         finally:
             okfkit._llm_complete = orig
         self.assertEqual(rc, 0)

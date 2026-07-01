@@ -106,18 +106,20 @@ Cross-links are standard markdown links, bundle-relative and absolute: `/concept
 Turn a folder of raw sources (`raw/`) — meeting transcripts, exported Confluence pages, Jira
 tickets — into OKF concept files. This is the only command that calls a model.
 
-```bash
-export OKFKIT_API_KEY="…"                       # required
-export OKFKIT_BASE_URL="https://<gateway>/v1"   # optional: any OpenAI-compatible gateway
-export OKFKIT_MODEL="gpt-4o-mini"               # optional: default model
+No API key needed. `structure` drives an LLM backend you already have logged in:
 
-uv run okfkit structure --raw raw --kb kb
+```bash
+uv run okfkit structure                     # default: your local Claude Code CLI (`claude -p`)
+uv run okfkit structure --provider opencode # opencode CLI (e.g. GitHub Copilot) — also keyless
+uv run okfkit structure --provider openai   # OpenAI-compatible endpoint; then set env keys:
+#   export OKFKIT_API_KEY="…"                # only for --provider openai
+#   export OKFKIT_BASE_URL="https://<gateway>/v1"   # optional
 ```
 
 Output shape:
 
 ```
-[structure] 12 source(s) -> 34 concept(s) (model=gpt-4o-mini)
+[structure] 12 source(s) -> 34 concept(s) (provider=claude)
 ```
 
 Each source is split into atomic concepts. A produced file looks exactly like the hand-written one
@@ -304,9 +306,10 @@ uv run okfkit navigate "your question"
 
 | Variable | Used by | Meaning |
 |----------|---------|---------|
-| `OKFKIT_API_KEY`  | `structure` | API key for your model. **Required** for `structure`. Never committed. |
-| `OKFKIT_BASE_URL` | `structure` | Optional. Any OpenAI-compatible endpoint. Omit for OpenAI itself. |
-| `OKFKIT_MODEL`    | `structure` | Optional. Default model id (also settable per-run with `--model`). |
+| `OKFKIT_API_KEY`  | `structure --provider openai` | API key. **Only** for the `openai` provider. Never committed. |
+| `OKFKIT_BASE_URL` | `structure --provider openai` | Optional. Any OpenAI-compatible endpoint. Omit for OpenAI itself. |
+| `OKFKIT_PROVIDER` | `structure` | Default backend: `claude` (no key), `opencode` (no key), or `openai`. |
+| `OKFKIT_MODEL`    | `structure` | Optional. Model id passed to the backend (also `--model`). |
 
 Consume/maintain commands (`index`, `link`, `lint`, `validate`, `navigate`) use **no** environment
 and **no** network.

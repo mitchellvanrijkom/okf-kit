@@ -18,10 +18,12 @@ Run the okf-kit produce → consume pipeline. Assume the working directory is an
 1. **Check inputs.** Confirm raw sources exist under `raw/` (`.md` files — transcripts, exported
    Confluence/Jira). If `raw/` is empty, tell the user where to drop files and stop.
 
-2. **Confirm the model is configured** (only needed for step 3). The `structure` command reads
-   `OKFKIT_API_KEY`, and optionally `OKFKIT_BASE_URL` (an OpenAI-compatible gateway) and
-   `OKFKIT_MODEL`, from the environment. If `OKFKIT_API_KEY` is unset, ask the user to export it
-   (never write keys to disk).
+2. **Pick the LLM backend** for step 3 (no API token by default):
+   - `--provider claude` (default) — the user's local Claude Code CLI (`claude -p`). No key.
+   - `--provider opencode` — the `opencode` CLI (e.g. GitHub Copilot backend). No key.
+   - `--provider openai` — an OpenAI-compatible endpoint; only this one needs `OKFKIT_API_KEY`
+     (and optionally `OKFKIT_BASE_URL`) in the environment. Never write keys to disk.
+   Default to `claude` unless the user asks otherwise.
 
 3. **Structure** raw sources into OKF concepts:
    ```bash

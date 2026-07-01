@@ -45,9 +45,10 @@ okfkit validate              # run okflint, the Google-spec conformance linter
 okfkit navigate "how do I safely retry a failed request?"
 ```
 
-The **produce** side (`structure`) needs a language model. Keys never live in the repo — set
-`OKFKIT_API_KEY`, and optionally `OKFKIT_BASE_URL` (any OpenAI-compatible gateway) and
-`OKFKIT_MODEL`. Install the LLM extra: `uv sync --extra llm`. Everything else runs with no model.
+The **produce** side (`structure`) drives a language model you already have logged in — **no API token**:
+`--provider claude` (your local Claude Code CLI, default), `--provider opencode` (e.g. GitHub Copilot),
+or `--provider openai` (then set `OKFKIT_API_KEY`/`OKFKIT_BASE_URL` in env; `uv sync --extra llm`).
+Everything else runs with no model at all.
 
 ### `index`
 Writes an `index.md` in every directory listing its concepts (`* [Title](file.md) - description`)
