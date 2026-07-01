@@ -305,7 +305,7 @@ uv run okfkit navigate "your question"
 | Variable | Used by | Meaning |
 |----------|---------|---------|
 | `OKFKIT_API_KEY`  | `structure` | API key for your model. **Required** for `structure`. Never committed. |
-| `OKFKIT_BASE_URL` | `structure` | Optional. Any OpenAI-compatible endpoint (e.g. a LiteLLM gateway). Omit for OpenAI itself. |
+| `OKFKIT_BASE_URL` | `structure` | Optional. Any OpenAI-compatible endpoint. Omit for OpenAI itself. |
 | `OKFKIT_MODEL`    | `structure` | Optional. Default model id (also settable per-run with `--model`). |
 
 Consume/maintain commands (`index`, `link`, `lint`, `validate`, `navigate`) use **no** environment
