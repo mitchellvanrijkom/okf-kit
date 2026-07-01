@@ -97,3 +97,27 @@ uv sync                                    # create env from uv.lock
 uv run python -m unittest discover -s tests -v
 uv run okfkit lint
 ```
+
+## Full guide
+
+A complete, copy-paste walkthrough with real outputs (reproducible on WSL/WSL, and readable by
+an agent): **[docs/GUIDE.md](docs/GUIDE.md)**.
+
+## Skills — talk to it, don't type commands
+
+This repo ships as a Claude Code plugin with three skills (in [`skills/`](skills/)), so you can
+drive okf-kit in plain language:
+
+| Skill | Say something like | It does |
+|-------|--------------------|---------|
+| `okf-build` | "build a knowledge base from `raw/`" | `structure` → `index` → `link` → `validate` |
+| `okf-ask`   | "what do we know about idempotency?" | reads the index, opens the right concept, follows links (no model key) |
+| `okf-check` | "is the bundle conformant?" | `lint` + `validate` |
+
+Install the plugin:
+
+```bash
+# in Claude Code
+/plugin marketplace add mitchellvanrijkom/okf-kit
+/plugin install okf-kit
+```

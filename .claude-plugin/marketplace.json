@@ -1,0 +1,15 @@
+{
+  "name": "okf-kit",
+  "owner": { "name": "okf-kit" },
+  "metadata": {
+    "description": "Skills for building and querying OKF markdown knowledge bases with okf-kit.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "okf-kit",
+      "source": "./",
+      "description": "Build (structure/index/link), check (lint/validate), and query (progressive disclosure) an OKF knowledge base."
+    }
+  ]
+}

@@ -35,4 +35,4 @@ okfkit = "okfkit:main"
 only-include = ["okfkit.py"]
 
 [tool.hatch.build.targets.sdist]
-include = ["okfkit.py", "README.md", "LICENSE", "kb/"]
+include = ["okfkit.py", "README.md", "LICENSE", "kb/", "docs/", "skills/", ".claude-plugin/"]
