@@ -1,6 +1,6 @@
 # okf-kit
 
-A tiny, dependency-free toolkit for **Open Knowledge Format (OKF)** bundles.
+A small toolkit for **Open Knowledge Format (OKF)** bundles.
 
 Plain markdown in git. No database, no embeddings, no API keys, no network. Retrieval is
 **progressive disclosure**: read the generated index, pick the concept, open it, follow its links —
@@ -18,7 +18,7 @@ anywhere (including WSL), and never puts a derived artifact in your git history.
 
 ## Install
 
-Requires Python 3.10+. One dependency: [PyYAML](https://pyyaml.org/) (robust frontmatter parsing).
+Requires Python 3.12+. One dependency: [PyYAML](https://pyyaml.org/) (robust frontmatter parsing).
 
 Install the `okfkit` CLI (PyYAML is pulled in automatically):
 
@@ -37,11 +37,17 @@ python3 okfkit.py --help
 ## Commands
 
 ```bash
-python3 okfkit.py index      # generate index.md for every directory (the matching surface)
-python3 okfkit.py link       # add a "Related" section per concept (mutual top-K on shared tags)
-python3 okfkit.py lint       # conformance check — hard errors vs soft warnings
-python3 okfkit.py navigate "how do I safely retry a failed request?"
+okfkit structure             # raw sources -> OKF concepts via an LLM (keys from env; needs the llm extra)
+okfkit index                 # generate index.md for every directory (the matching surface)
+okfkit link                  # add a "Related" section per concept (mutual top-K on shared tags)
+okfkit lint                  # fast, dependency-light conformance check — hard errors vs soft warnings
+okfkit validate              # run okflint, the Google-spec conformance linter
+okfkit navigate "how do I safely retry a failed request?"
 ```
+
+The **produce** side (`structure`) needs a language model. Keys never live in the repo — set
+`OKFKIT_API_KEY`, and optionally `OKFKIT_BASE_URL` (any OpenAI-compatible gateway) and
+`OKFKIT_MODEL`. Install the LLM extra: `uv sync --extra llm`. Everything else runs with no model.
 
 ### `index`
 Writes an `index.md` in every directory listing its concepts (`* [Title](file.md) - description`)

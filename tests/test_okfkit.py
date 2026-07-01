@@ -134,6 +134,31 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("STAP", out)
 
+    def test_structure_writes_okf(self):
+        # mock the LLM: no network, no key needed
+        raw = self.kb.parent / "raw"
+        raw.mkdir()
+        (raw / "note.md").write_text("meeting braindump: idempotency matters for retries\n", encoding="utf-8")
+        canned = '[{"type":"Concept","title":"Idempotency","description":"Safe to repeat.","tags":["reliability"],"body":"# Idempotency\\nBody."}]'
+        orig = okfkit._llm_complete
+        okfkit._llm_complete = lambda prompt, model: canned
+        try:
+            rc, _ = self.run_cmd(okfkit.cmd_structure, raw=str(raw), model="mock")
+        finally:
+            okfkit._llm_complete = orig
+        self.assertEqual(rc, 0)
+        page = self.kb / "concepts" / "idempotency.md"
+        self.assertTrue(page.exists())
+        fm, _, ok = okfkit.parse(page.read_text())
+        self.assertTrue(ok)
+        self.assertEqual(fm["type"], "Concept")
+
+    @unittest.skipUnless(__import__("shutil").which("okflint"), "okflint not installed")
+    def test_validate_runs_okflint(self):
+        rc, out = self.run_cmd(okfkit.cmd_validate)
+        self.assertEqual(rc, 0)
+        self.assertIn("okflint", out)
+
 
 if __name__ == "__main__":
     unittest.main()

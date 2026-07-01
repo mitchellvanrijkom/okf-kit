@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""okf-kit — a tiny, dependency-free toolkit for Open Knowledge Format (OKF) bundles.
+"""okf-kit — a small toolkit for Open Knowledge Format (OKF) bundles.
 
-Plain markdown in git. No database, no embeddings, no API keys, no network.
+Plain markdown in git. Produce with an LLM (your key, your gateway); consume with zero LLM.
 Retrieval is *progressive disclosure*: read the generated index, pick the concept,
 open it, follow its links.
 
 Commands:
+  okfkit structure Raw sources -> OKF concepts via an LLM (OpenAI-compatible, keys from env).
   okfkit index     Generate index.md for every directory (the matching surface).
   okfkit link      Add a "Related" section per concept (mutual top-K on shared tags).
-  okfkit lint      Conformance check, split into hard errors vs soft warnings.
+  okfkit lint      Fast dependency-light conformance check (hard errors vs soft warnings).
+  okfkit validate  Run okflint, the Google-spec conformance linter.
   okfkit navigate  Progressive-disclosure lookup: index -> pick concept -> links.
 
 OKF v0.1 in one line: a directory of markdown files with YAML frontmatter; the only
@@ -17,6 +19,8 @@ required field is `type`. index.md and log.md are reserved. See SPEC referenced 
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -94,6 +98,90 @@ def load(root: Path) -> list[dict]:
 
 
 # ------------------------------------------------------------------ commands
+
+# ------------------------------------------------------------------ structure (LLM produce)
+
+STRUCTURE_PROMPT = """You split a raw source document into atomic Open Knowledge Format concepts.
+Return ONLY a JSON array. Each element:
+{"type": "Concept|Reference|Runbook|Decision|Note", "title": "...", "description": "one sentence",
+ "tags": ["...","..."], "body": "clean markdown"}
+Rules: one idea per concept; drop noise; use canonical titles so the same idea from different
+sources shares a slug; neutral prose, no speaker names.
+
+Source file: %s
+---
+%s
+---
+Only the JSON array."""
+
+
+def _llm_complete(prompt: str, model: str) -> str:
+    """One completion against an OpenAI-compatible endpoint. Keys come from env, never the repo.
+    Split out so tests can monkeypatch it without a network call."""
+    try:
+        from openai import OpenAI
+    except ImportError:
+        sys.exit("`structure` needs the llm extra:  uv sync --extra llm   (or: pip install openai)")
+    key = os.environ.get("OKFKIT_API_KEY")
+    if not key:
+        sys.exit("set OKFKIT_API_KEY (and optionally OKFKIT_BASE_URL for a gateway) in your env")
+    base = os.environ.get("OKFKIT_BASE_URL")
+    client = OpenAI(base_url=base, api_key=key) if base else OpenAI(api_key=key)
+    resp = client.chat.completions.create(
+        model=model, temperature=0.2, messages=[{"role": "user", "content": prompt}])
+    return resp.choices[0].message.content or ""
+
+
+def _structure_one(text: str, fname: str, model: str) -> list[dict]:
+    raw = _llm_complete(STRUCTURE_PROMPT % (fname, text[:12000]), model).strip()
+    raw = re.sub(r"^```(?:json)?\n?|\n?```$", "", raw).strip()
+    data = json.loads(raw)
+    return data if isinstance(data, list) else [data]
+
+
+def cmd_structure(args) -> int:
+    raw_dir, kb = Path(args.raw), Path(args.kb)
+    kb.mkdir(parents=True, exist_ok=True)
+    sources = sorted(p for p in raw_dir.rglob("*.md") if p.name not in RESERVED)
+    if not sources:
+        print(f"[structure] no .md sources in {raw_dir}/")
+        return 1
+    total = 0
+    for src in sources:
+        for c in _structure_one(src.read_text(encoding="utf-8"), src.name, args.model):
+            meta = {"type": c.get("type", "Note"), "title": c.get("title", "untitled"),
+                    "description": c.get("description", ""),
+                    "resource": str(src.relative_to(raw_dir.parent) if raw_dir.parent in src.parents else src),
+                    "tags": c.get("tags", [])}
+            slug = re.sub(r"[^\w]+", "-", meta["title"].lower()).strip("-") or "untitled"
+            fm = "---\n" + yaml.safe_dump({k: v for k, v in meta.items() if v}, sort_keys=False).strip() + "\n---\n"
+            (kb / "concepts").mkdir(exist_ok=True)
+            (kb / "concepts" / f"{slug}.md").write_text(fm + "\n" + c.get("body", "").strip() + "\n", encoding="utf-8")
+            total += 1
+    print(f"[structure] {len(sources)} source(s) -> {total} concept(s) (model={args.model})")
+    return 0
+
+
+# ------------------------------------------------------------------ validate (okflint)
+
+def cmd_validate(args) -> int:
+    """Run okflint — the Google-spec conformance linter — with an auto-generated manifest."""
+    import shutil
+    import subprocess
+    import tempfile
+    if not shutil.which("okflint"):
+        sys.exit("okflint not found. Install it:  uv sync   (okflint is a dependency)")
+    kb = Path(args.kb).resolve()
+    manifest = Path(tempfile.mkdtemp()) / "okf-base.yaml"
+    manifest.write_text(
+        f'base:\n  name: {kb.name}\n  roots:\n    - path: "{kb}"\n'
+        f'  reserved_files:\n    index: index.md\n    log: log.md\n', encoding="utf-8")
+    rc = 0
+    for sub in (["validate", "--manifest", str(manifest)], ["audit", "--manifest", str(manifest)]):
+        print(f"$ okflint {' '.join(sub[:1])}")
+        rc = subprocess.run(["okflint"] + sub).returncode or rc
+    return rc
+
 
 def cmd_index(args) -> int:
     root = Path(args.kb)
@@ -215,8 +303,9 @@ def cmd_navigate(args) -> int:
 def main() -> int:
     p = argparse.ArgumentParser(prog="okfkit", description="Tiny dependency-free OKF toolkit.")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name, fn, extra in [("index", cmd_index, None), ("link", cmd_link, "top"),
-                            ("lint", cmd_lint, "max_soft"), ("navigate", cmd_navigate, "query")]:
+    for name, fn, extra in [("structure", cmd_structure, "structure"), ("index", cmd_index, None),
+                            ("link", cmd_link, "top"), ("lint", cmd_lint, "max_soft"),
+                            ("validate", cmd_validate, None), ("navigate", cmd_navigate, "query")]:
         sp = sub.add_parser(name)
         sp.add_argument("--kb", default="kb")
         if extra == "top":
@@ -225,6 +314,9 @@ def main() -> int:
             sp.add_argument("--max-soft", type=int, default=50, dest="max_soft")
         if extra == "query":
             sp.add_argument("query")
+        if extra == "structure":
+            sp.add_argument("--raw", default="raw")
+            sp.add_argument("--model", default=os.environ.get("OKFKIT_MODEL", "gpt-4o-mini"))
         sp.set_defaults(func=fn)
     args = p.parse_args()
     return args.func(args)
