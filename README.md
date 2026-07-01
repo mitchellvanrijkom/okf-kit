@@ -83,3 +83,11 @@ kb/
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Develop (uv)
+
+```bash
+uv sync                                    # create env from uv.lock
+uv run python -m unittest discover -s tests -v
+uv run okfkit lint
+```
