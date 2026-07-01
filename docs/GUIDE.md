@@ -116,6 +116,11 @@ uv run okfkit structure --provider openai   # OpenAI-compatible endpoint; then s
 #   export OKFKIT_BASE_URL="https://<gateway>/v1"   # optional
 ```
 
+> **Two paths.** `okfkit structure` is the **headless** path — for a cron job or script with no
+> agent. If you're already talking to an agent (Claude Code, opencode) through the `okf-build`
+> skill, the agent structures the sources *itself, in context* — no subprocess, no `claude -p`,
+> no key. Same result, no extra process.
+
 Output shape:
 
 ```
