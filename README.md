@@ -18,10 +18,20 @@ anywhere (including WSL), and never puts a derived artifact in your git history.
 
 ## Install
 
-None. Requires Python 3.10+.
+Requires Python 3.10+. Zero runtime dependencies (standard library only).
+
+Run it directly, no install:
 
 ```bash
 python3 okfkit.py --help
+```
+
+Or install the `okfkit` CLI:
+
+```bash
+uv tool install .          # from a clone
+pipx install .             # alternative
+uvx --from git+https://github.com/mitchellvanrijkom/okf-kit okfkit --help   # no clone
 ```
 
 ## Commands

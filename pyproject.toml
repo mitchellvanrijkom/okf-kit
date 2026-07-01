@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "okf-kit"
+version = "0.1.0"
+description = "A tiny, dependency-free toolkit for Open Knowledge Format (OKF) bundles: index, link, lint, and progressive-disclosure navigation over plain markdown."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["okf", "open-knowledge-format", "knowledge-base", "markdown", "agents", "cli"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Text Processing :: Markup :: Markdown",
+]
+# No runtime dependencies — Python standard library only.
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/mitchellvanrijkom/okf-kit"
+
+[project.scripts]
+okfkit = "okfkit:main"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["okfkit.py"]
+
+[tool.hatch.build.targets.sdist]
+include = ["okfkit.py", "README.md", "LICENSE", "kb/"]
