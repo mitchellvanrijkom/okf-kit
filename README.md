@@ -100,7 +100,7 @@ uv run okfkit lint
 
 ## Full guide
 
-A complete, copy-paste walkthrough with real outputs (reproducible on WSL/WSL, and readable by
+A complete, copy-paste walkthrough with real outputs (reproducible on WSL/Linux/macOS, and readable by
 an agent): **[docs/GUIDE.md](docs/GUIDE.md)**.
 
 ## Skills — talk to it, don't type commands

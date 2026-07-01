@@ -37,7 +37,7 @@ follow its links. No vector database.
 
 ## 2. Install
 
-You need Python 3.12+ and [uv](https://docs.astral.sh/uv/). On WSL WSL:
+You need Python 3.12+ and [uv](https://docs.astral.sh/uv/). On Windows (WSL), Linux, or macOS:
 
 ```bash
 # uv (one line, no admin rights needed)
@@ -108,7 +108,7 @@ tickets — into OKF concept files. This is the only command that calls a model.
 
 ```bash
 export OKFKIT_API_KEY="…"                       # required
-export OKFKIT_BASE_URL="https://<gateway>/v1"   # optional: any OpenAI-compatible gateway (e.g. LiteLLM)
+export OKFKIT_BASE_URL="https://<gateway>/v1"   # optional: any OpenAI-compatible gateway
 export OKFKIT_MODEL="gpt-4o-mini"               # optional: default model
 
 uv run okfkit structure --raw raw --kb kb
