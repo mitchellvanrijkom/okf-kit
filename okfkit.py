@@ -29,6 +29,9 @@ import yaml  # PyYAML — robust frontmatter parsing (nested/multiline/quoted)
 
 RESERVED = {"index.md", "log.md"}
 RECOMMENDED = ("title", "description", "resource", "tags", "timestamp")
+# Frontmatter keys that are metadata, not graph edges. Any OTHER key whose value is a concept
+# path (…/x.md) is a TYPED EDGE — the key is the verb (runs / consumes / produces / …).
+RESERVED_FM = {"type", "title", "description", "resource", "tags", "timestamp", "okf_version"}
 
 # ------------------------------------------------------------------ frontmatter
 
@@ -80,6 +83,20 @@ def outgoing_links(body: str) -> list[str]:
     return _MDLINK.findall(stripped)
 
 
+def edges_of(fm: dict) -> list[tuple[str, str]]:
+    """Typed edges from frontmatter: every non-metadata key whose value is a concept path (or list
+    of them) is an edge. The key is the verb (e.g. runs / consumes / produces). Nodes are nouns
+    (type), edges are verbs — the graph-theory model of a company second brain."""
+    out = []
+    for k, v in fm.items():
+        if k in RESERVED_FM:
+            continue
+        for x in (v if isinstance(v, list) else [v]):
+            if isinstance(x, str) and x.strip().endswith(".md"):
+                out.append((k, x.strip().lstrip("/")[:-3]))
+    return out
+
+
 def load(root: Path) -> list[dict]:
     docs = []
     for p in sorted(root.rglob("*.md")):
@@ -93,7 +110,8 @@ def load(root: Path) -> list[dict]:
         docs.append({"path": p, "slug": slug_of(p, root), "fm": fm, "body": body,
                      "parse_ok": ok, "type": fm.get("type", ""),
                      "title": fm.get("title") or p.stem.replace("-", " ").title(),
-                     "description": fm.get("description", ""), "tags": tags})
+                     "description": fm.get("description", ""), "tags": tags,
+                     "edges": edges_of(fm)})
     return docs
 
 
@@ -204,6 +222,43 @@ def cmd_validate(args) -> int:
     return rc
 
 
+def _graph(root: Path):
+    docs = load(root)
+    slugs = {d["slug"] for d in docs}
+    nodes = [{"slug": d["slug"], "type": d["type"] or "Note", "title": d["title"]} for d in docs]
+    edges, dangling = [], []
+    for d in docs:
+        for verb, tgt in d["edges"]:
+            (edges if tgt in slugs else dangling).append({"from": d["slug"], "verb": verb, "to": tgt})
+    return nodes, edges, dangling
+
+
+def cmd_graph(args) -> int:
+    """Derive the typed graph: nodes (nouns / type) connected by edges (verbs / frontmatter keys)."""
+    import json as _json
+    nodes, edges, dangling = _graph(Path(args.kb))
+    if args.json:
+        print(_json.dumps({"nodes": nodes, "edges": edges, "dangling": dangling}, indent=2))
+        return 1 if dangling else 0
+    by_type: dict[str, int] = {}
+    for n in nodes:
+        by_type[n["type"]] = by_type.get(n["type"], 0) + 1
+    print(f"Graph — {len(nodes)} nodes, {len(edges)} typed edges" + (f", {len(dangling)} dangling" if dangling else ""))
+    print("  Node types: " + ", ".join(f"{t}={c}" for t, c in sorted(by_type.items())))
+    by_verb: dict[str, list] = {}
+    for e in edges:
+        by_verb.setdefault(e["verb"], []).append(e)
+    for verb in sorted(by_verb):
+        print(f"\n  [{verb}]")
+        for e in by_verb[verb]:
+            print(f"    {e['from']}  --{verb}-->  {e['to']}")
+    if dangling:
+        print("\n  \033[33mDangling edges (target not found — fix the data):\033[0m")
+        for e in dangling:
+            print(f"    {e['from']}  --{e['verb']}-->  {e['to']}  ✗")
+    return 1 if dangling else 0
+
+
 def cmd_index(args) -> int:
     root = Path(args.kb)
     docs = load(root)
@@ -280,6 +335,9 @@ def cmd_lint(args) -> int:
             t = tgt.lstrip("/")[:-3]
             if t not in slugs:
                 soft.append(f"{rel}: broken link -> {tgt}")
+        for verb, tgt in d["edges"]:
+            if tgt not in slugs:
+                soft.append(f"{rel}: dangling edge `{verb}` -> /{tgt}.md")
     print(f"OKF v0.1 conformance — {root}   ({len(docs)} concepten)")
     for h in hard:
         print(f"  \033[31m✗ ERROR\033[0m  {h}")
@@ -316,8 +374,10 @@ def cmd_navigate(args) -> int:
     print(f"\n── STAP 3: open {hit['slug']}.md ──")
     print("\n".join("  " + l for l in hit["body"].strip().splitlines()[:10]))
     print(f"\n── STAP 4: volg links ──")
-    for tgt in outgoing_links(hit["body"]) or ["(geen)"]:
+    for tgt in outgoing_links(hit["body"]) or ["(geen markdown-links)"]:
         print(f"  → {tgt}")
+    for verb, tgt in hit["edges"]:
+        print(f"  ~{verb}~> /{tgt}.md")
     return 0
 
 
@@ -326,7 +386,8 @@ def main() -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     for name, fn, extra in [("structure", cmd_structure, "structure"), ("index", cmd_index, None),
                             ("link", cmd_link, "top"), ("lint", cmd_lint, "max_soft"),
-                            ("validate", cmd_validate, None), ("navigate", cmd_navigate, "query")]:
+                            ("validate", cmd_validate, None), ("graph", cmd_graph, "graph"),
+                            ("navigate", cmd_navigate, "query")]:
         sp = sub.add_parser(name)
         sp.add_argument("--kb", default="kb")
         if extra == "top":
@@ -335,6 +396,8 @@ def main() -> int:
             sp.add_argument("--max-soft", type=int, default=50, dest="max_soft")
         if extra == "query":
             sp.add_argument("query")
+        if extra == "graph":
+            sp.add_argument("--json", action="store_true", help="emit the graph as JSON")
         if extra == "structure":
             sp.add_argument("--raw", default="raw")
             sp.add_argument("--provider", choices=["claude", "opencode", "openai"],

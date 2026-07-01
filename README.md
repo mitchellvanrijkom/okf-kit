@@ -42,6 +42,7 @@ okfkit index                 # generate index.md for every directory (the matchi
 okfkit link                  # add a "Related" section per concept (mutual top-K on shared tags)
 okfkit lint                  # fast, dependency-light conformance check — hard errors vs soft warnings
 okfkit validate              # run okflint, the Google-spec conformance linter
+okfkit graph                 # derive the typed graph (nodes=nouns, edges=verbs)
 okfkit navigate "how do I safely retry a failed request?"
 ```
 

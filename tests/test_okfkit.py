@@ -75,11 +75,28 @@ class TestLinks(unittest.TestCase):
         self.assertEqual(links, ["/x.md"])
 
 
+class TestEdges(unittest.TestCase):
+    def test_edges_of_reads_verbs_skips_metadata(self):
+        fm = {"type": "Workflow", "resource": "raw/x.md", "tags": ["a"],
+              "run_by": "/teams/product.md", "consumes": ["/data/t.md", "/data/u.md"]}
+        e = okfkit.edges_of(fm)
+        self.assertIn(("run_by", "teams/product"), e)
+        self.assertIn(("consumes", "data/t"), e)
+        self.assertIn(("consumes", "data/u"), e)
+        self.assertNotIn(("resource", "raw/x"), e)   # resource is metadata, not an edge
+
+
 class TestCommands(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.kb = Path(self.tmp.name) / "kb"
         make_kb(self.kb)
+
+    def _add_workflow(self, dangling=False):
+        (self.kb / "workflows").mkdir(parents=True, exist_ok=True)
+        tgt = "/data/missing.md" if dangling else "/concepts/retries.md"
+        (self.kb / "workflows" / "wf.md").write_text(
+            f"---\ntype: Workflow\ntitle: WF\ndescription: x\nconsumes: {tgt}\n---\n# WF\n", encoding="utf-8")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -152,6 +169,25 @@ class TestCommands(unittest.TestCase):
         fm, _, ok = okfkit.parse(page.read_text())
         self.assertTrue(ok)
         self.assertEqual(fm["type"], "Concept")
+
+    def test_graph_derives_typed_edges(self):
+        self._add_workflow()
+        rc, out = self.run_cmd(okfkit.cmd_graph, json=False)
+        self.assertEqual(rc, 0)
+        self.assertIn("consumes", out)
+        self.assertIn("typed edge", out)
+
+    def test_graph_flags_dangling(self):
+        self._add_workflow(dangling=True)
+        rc, out = self.run_cmd(okfkit.cmd_graph, json=False)
+        self.assertEqual(rc, 1)               # dangling edge -> exit 1
+        self.assertIn("Dangling", out)
+
+    def test_lint_dangling_edge_is_soft(self):
+        self._add_workflow(dangling=True)
+        rc, out = self.run_cmd(okfkit.cmd_lint, max_soft=50)
+        self.assertEqual(rc, 0)               # dangling edge is a warning, not a hard error
+        self.assertIn("dangling edge", out)
 
     @unittest.skipUnless(__import__("shutil").which("okflint"), "okflint not installed")
     def test_validate_runs_okflint(self):

@@ -18,6 +18,7 @@ readable by an agent so it can drive the tool for you.
 - [12. Troubleshooting](#12-troubleshooting)
 - [13. For your agent / LLM](#13-for-your-agent)
 - [14. Worked example — both paths, validated](#14-worked-example)
+- [15. The company graph — typed edges](#15-the-company-graph)
 
 ---
 
@@ -417,3 +418,65 @@ okfkit navigate --kb kb "how do we prevent duplicate orders on retry?"
 
 Or, in your agent, just ask the **`okf-ask`** skill in plain language — it reads the index, opens the
 right concept, and follows the links, citing the files it used.
+
+---
+
+## 15. The company graph — typed edges (specialization layer)
+
+A knowledge base becomes a real second brain when the connections carry meaning. In graph terms:
+**nodes are nouns** (a team, a workflow, a dataset — your `type`) and **edges are verbs** (runs,
+consumes, produces — the relationship). okf-kit reads verbs straight from frontmatter: *any
+frontmatter key whose value is a concept path (`/…/x.md`, or a list of them) is a typed edge, and
+the key is the verb.* No new syntax, no config.
+
+Model a company the way the method describes — break each noun and verb into its own file, don't dump
+a whole sentence into random files:
+
+```markdown
+---
+type: Workflow
+title: Slack Questions Workflow
+description: Collects questions from a Slack channel, consumes ticket info, produces answers.
+run_by: /teams/product-team.md      # verb: run_by
+consumes: /data/ticket-info.md      # verb: consumes
+produces: /data/answers.md          # verb: produces
+---
+# Slack Questions Workflow
+Collects questions from a Slack channel …
+```
+
+Derive the graph:
+
+```bash
+okfkit graph
+```
+
+```
+Graph — 11 nodes, 4 typed edges
+  Node types: Concept=5, Dataset=2, Reference=1, Team=2, Workflow=1
+
+  [consumes]
+    workflows/slack-questions  --consumes-->  data/ticket-info
+  [produces]
+    workflows/slack-questions  --produces-->  data/answers
+  [run_by]
+    workflows/slack-questions  --run_by-->  teams/product-team
+  [talks_to]
+    teams/product-team  --talks_to-->  teams/data-team
+```
+
+`okfkit graph --json` emits the same as machine-readable `{nodes, edges, dangling}`.
+
+### Fix based on the data
+
+A typed edge that points at a file that doesn't exist is a **dangling edge** — the graph is telling
+you the data is incomplete. `graph` exits non-zero and lists them; `lint` reports each as a warning:
+
+```
+  Dangling edges (target not found — fix the data):
+    workflows/slack-questions  --notifies-->  teams/marketing  ✗
+```
+
+That is the repair loop: the system derives the company graph from the markdown, surfaces the gaps
+(dangling edges, missing counterparts), and you — or your agent — fill them in. Nouns and verbs, one
+file each, and a graph that describes how the company actually works.

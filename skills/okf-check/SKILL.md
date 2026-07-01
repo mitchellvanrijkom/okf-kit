@@ -23,7 +23,15 @@ Two checks, run both. Prefer `uv run okfkit …`; fall back to `okfkit …`.
    uv run okfkit validate --kb kb
    ```
 
+3. **Graph health** — derive the typed graph (nodes = nouns, edges = verbs) and flag dangling edges
+   (a typed edge pointing at a file that does not exist — the data is incomplete):
+   ```bash
+   uv run okfkit graph --kb kb
+   ```
+
 ## Report
+Also surface any **dangling edges** from `graph` — those are the concrete "fix the data" items.
+
 Summarise: conformant yes/no, number of hard errors, and a short list of warnings worth acting on
 (e.g. concepts missing a `description`, or genuinely broken links). Do not treat warnings as
 failures. If there are hard errors, point at the exact file + field and offer to fix.
