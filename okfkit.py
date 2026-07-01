@@ -259,6 +259,97 @@ def cmd_graph(args) -> int:
     return 1 if dangling else 0
 
 
+# ------------------------------------------------------------------ sources (git repos)
+
+SOURCES_FILE = "okf-sources.yaml"
+
+
+def _load_sources() -> list[dict]:
+    p = Path(SOURCES_FILE)
+    if not p.exists():
+        return []
+    data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    return data.get("sources", []) if isinstance(data, dict) else []
+
+
+def _save_sources(sources: list[dict]) -> None:
+    Path(SOURCES_FILE).write_text(yaml.safe_dump({"sources": sources}, sort_keys=False), encoding="utf-8")
+
+
+def _source_name(url: str) -> str:
+    return url.rstrip("/").split("/")[-1].removesuffix(".git") or "source"
+
+
+def cmd_source(args) -> int:
+    """Register git repositories as knowledge sources. Their markdown lands in raw/, ready for
+    `structure`. The manifest (okf-sources.yaml) is committed; the clones (raw/git/*) are gitignored."""
+    import shutil
+    import subprocess
+    if not shutil.which("git"):
+        sys.exit("git not found on PATH")
+    raw = Path(args.raw)
+    git_dir = raw / "git"
+    sources = _load_sources()
+
+    def clone(url, name, dest):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        r = subprocess.run(["git", "clone", "--depth", "1", url, str(dest)])
+        if r.returncode:
+            sys.exit(f"git clone failed for {url}")
+
+    if args.action == "add":
+        if not args.target:
+            sys.exit("usage: okfkit source add <git-url> [--name N] [--docs SUBDIR]")
+        name = args.name or _source_name(args.target)
+        dest = git_dir / name
+        if any(s["name"] == name for s in sources):
+            sys.exit(f"source '{name}' already registered (use `source sync {name}`)")
+        clone(args.target, name, dest)
+        sources.append({"name": name, "url": args.target, "docs": args.docs})
+        _save_sources(sources)
+        docs_path = dest / args.docs if args.docs else dest
+        n = len(list(docs_path.rglob("*.md")))
+        print(f"[source] added '{name}' -> {dest}  ({n} markdown file(s))")
+        print(f"[source] next: turn its docs into OKF, e.g.  okfkit structure --raw {docs_path}")
+        return 0
+
+    if args.action == "list":
+        if not sources:
+            print("[source] none registered")
+        for s in sources:
+            here = "cloned" if (git_dir / s["name"]).exists() else "missing (run sync)"
+            print(f"  {s['name']:<24} {s['url']}  [{here}]" + (f"  docs={s['docs']}" if s.get("docs") else ""))
+        return 0
+
+    if args.action == "sync":
+        targets = [s for s in sources if not args.target or s["name"] == args.target]
+        if not targets:
+            sys.exit("nothing to sync (no such source)")
+        for s in targets:
+            dest = git_dir / s["name"]
+            if not dest.exists():
+                print(f"[source] {s['name']}: cloning (was missing)")
+                clone(s["url"], s["name"], dest)
+                continue
+            rev = lambda ref: subprocess.run(["git", "-C", str(dest), "rev-parse", ref], capture_output=True, text=True).stdout.strip()
+            before = rev("HEAD")
+            subprocess.run(["git", "-C", str(dest), "fetch", "--depth", "1", "origin"], capture_output=True)
+            subprocess.run(["git", "-C", str(dest), "reset", "--hard", "FETCH_HEAD"], capture_output=True)  # mirror: follow upstream
+            after = rev("HEAD")
+            print(f"[source] {s['name']}: {'up to date' if before == after else 'updated ' + before[:7] + ' -> ' + after[:7]}")
+        print("[source] re-run structure/index/link on changed sources to refresh the OKF")
+        return 0
+
+    if args.action == "remove":
+        if not args.target:
+            sys.exit("usage: okfkit source remove <name>")
+        shutil.rmtree(git_dir / args.target, ignore_errors=True)
+        _save_sources([s for s in sources if s["name"] != args.target])
+        print(f"[source] removed '{args.target}'")
+        return 0
+    return 1
+
+
 def cmd_index(args) -> int:
     root = Path(args.kb)
     docs = load(root)
@@ -405,6 +496,15 @@ def main() -> int:
                             help="LLM backend. claude/opencode need no API key; openai reads env.")
             sp.add_argument("--model", default=os.environ.get("OKFKIT_MODEL"))
         sp.set_defaults(func=fn)
+
+    ps = sub.add_parser("source", help="manage git-repo sources (add/list/sync/remove)")
+    ps.add_argument("action", choices=["add", "list", "sync", "remove"])
+    ps.add_argument("target", nargs="?", help="git URL (add) or source name (sync/remove)")
+    ps.add_argument("--name", help="override the source name (default: repo name)")
+    ps.add_argument("--docs", default="", help="subdirectory in the repo that holds the docs")
+    ps.add_argument("--raw", default="raw")
+    ps.set_defaults(func=cmd_source)
+
     args = p.parse_args()
     return args.func(args)
 

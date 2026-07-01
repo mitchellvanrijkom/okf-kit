@@ -43,6 +43,7 @@ okfkit link                  # add a "Related" section per concept (mutual top-K
 okfkit lint                  # fast, dependency-light conformance check — hard errors vs soft warnings
 okfkit validate              # run okflint, the Google-spec conformance linter
 okfkit graph                 # derive the typed graph (nodes=nouns, edges=verbs)
+okfkit source add <git-url>  # add a git repo as a source (source list / sync / remove)
 okfkit navigate "how do I safely retry a failed request?"
 ```
 

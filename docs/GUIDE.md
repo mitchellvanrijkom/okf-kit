@@ -19,6 +19,7 @@ readable by an agent so it can drive the tool for you.
 - [13. For your agent / LLM](#13-for-your-agent)
 - [14. Worked example — both paths, validated](#14-worked-example)
 - [15. The company graph — typed edges](#15-the-company-graph)
+- [16. Git repositories as sources](#16-git-repositories-as-sources)
 
 ---
 
@@ -480,3 +481,52 @@ you the data is incomplete. `graph` exits non-zero and lists them; `lint` report
 That is the repair loop: the system derives the company graph from the markdown, surfaces the gaps
 (dangling edges, missing counterparts), and you — or your agent — fill them in. Nouns and verbs, one
 file each, and a graph that describes how the company actually works.
+
+---
+
+## 16. Git repositories as sources
+
+A lot of teams already keep their documentation as markdown inside git repos. Register a repo as a
+source, ingest its docs into OKF, and keep it in sync.
+
+```bash
+okfkit source add https://gitlab.com/acme/platform-docs --name platform --docs docs
+```
+```
+Cloning into 'raw/git/platform'...
+[source] added 'platform' -> raw/git/platform  (37 markdown file(s))
+[source] next: turn its docs into OKF, e.g.  okfkit structure --raw raw/git/platform/docs
+```
+
+- The repo is shallow-cloned into `raw/git/<name>/` (gitignored — the clone is not committed).
+- The registry `okf-sources.yaml` **is** committed, so the team shares which repos feed the brain:
+  ```yaml
+  sources:
+    - name: platform
+      url: https://gitlab.com/acme/platform-docs
+      docs: docs
+  ```
+
+Turn the docs into OKF (agent structures in-context, or headless):
+```bash
+okfkit structure --raw raw/git/platform/docs --kb kb   # then index / link / graph / validate
+```
+
+### Keep it fresh
+
+```bash
+okfkit source sync              # all sources — or: okfkit source sync platform
+```
+```
+[source] platform: updated a1b2c3d -> e4f5a6b
+```
+`sync` fetches the latest and mirrors each repo to upstream. Re-run `structure → index → link →
+graph → validate` on anything that changed, and the nodes + edges update with the new docs.
+
+```bash
+okfkit source list      # what's registered, and whether it's cloned
+okfkit source remove platform
+```
+
+In an agent, just say **"add this git source: <url>"** or **"sync my sources"** — the `okf-source`
+skill does the clone/pull and rebuilds the OKF.

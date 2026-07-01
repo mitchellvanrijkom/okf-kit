@@ -1,5 +1,8 @@
 """Unit tests for okf-kit. Standard library only: python3 -m unittest -v."""
 import io
+import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -194,6 +197,52 @@ class TestCommands(unittest.TestCase):
         rc, out = self.run_cmd(okfkit.cmd_validate)
         self.assertEqual(rc, 0)
         self.assertIn("okflint", out)
+
+
+@unittest.skipUnless(shutil.which("git"), "git not installed")
+class TestSources(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.up = root / "up"
+        (self.up / "docs").mkdir(parents=True)
+        (self.up / "docs" / "a.md").write_text("# A\n", encoding="utf-8")
+        for c in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"],
+                  ["add", "-A"], ["-c", "commit.gpgsign=false", "commit", "-q", "-m", "x"]):
+            subprocess.run(["git", "-C", str(self.up)] + c, capture_output=True)
+        self.proj = root / "proj"
+        self.proj.mkdir()
+        self._old = os.getcwd()
+        os.chdir(self.proj)
+
+    def tearDown(self):
+        os.chdir(self._old)
+        self.tmp.cleanup()
+
+    def _run(self, **kw):
+        base = dict(action=None, target=None, name=None, docs="", raw="raw")
+        base.update(kw)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = okfkit.cmd_source(SimpleNamespace(**base))
+        return rc, buf.getvalue()
+
+    def test_add_clones_and_registers(self):
+        rc, _ = self._run(action="add", target=f"file://{self.up}", name="d", docs="docs")
+        self.assertEqual(rc, 0)
+        self.assertTrue((self.proj / "raw" / "git" / "d" / "docs" / "a.md").exists())
+        self.assertTrue((self.proj / "okf-sources.yaml").exists())
+        rc, out = self._run(action="list")
+        self.assertIn("d", out)
+
+    def test_sync_pulls_new_commits(self):
+        self._run(action="add", target=f"file://{self.up}", name="d", docs="docs")
+        (self.up / "docs" / "b.md").write_text("# B\n", encoding="utf-8")
+        for c in (["add", "-A"], ["-c", "commit.gpgsign=false", "commit", "-q", "-m", "b"]):
+            subprocess.run(["git", "-C", str(self.up)] + c, capture_output=True)
+        rc, out = self._run(action="sync")
+        self.assertEqual(rc, 0)
+        self.assertTrue((self.proj / "raw" / "git" / "d" / "docs" / "b.md").exists())
 
 
 if __name__ == "__main__":
