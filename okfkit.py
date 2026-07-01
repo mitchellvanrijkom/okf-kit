@@ -21,32 +21,31 @@ import re
 import sys
 from pathlib import Path
 
+import yaml  # PyYAML — robust frontmatter parsing (nested/multiline/quoted)
+
 RESERVED = {"index.md", "log.md"}
 RECOMMENDED = ("title", "description", "resource", "tags", "timestamp")
 
 # ------------------------------------------------------------------ frontmatter
 
 def parse(text: str) -> tuple[dict, str, bool]:
-    """Return (frontmatter, body, ok). ok=False if a frontmatter block is present but unparseable."""
+    """Return (frontmatter, body, ok). ok=False if a frontmatter block is present but unparseable
+    (unclosed fence, YAML error, or a non-mapping root)."""
     if not text.startswith("---\n"):
         return {}, text, True
     end = text.find("\n---", 4)
     if end == -1:
         return {}, text, False  # opened but never closed
-    fm: dict = {}
-    for line in text[4:end].splitlines():
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        if ":" not in line or line[0] in " \t-":
-            continue
-        k, v = line.split(":", 1)
-        v = v.strip()
-        if v.startswith("[") and v.endswith("]"):
-            v = [x.strip().strip('"').strip("'") for x in v[1:-1].split(",") if x.strip()]
-        else:
-            v = v.strip('"').strip("'")
-        fm[k.strip()] = v
-    return fm, text[end + 4:].lstrip("\n"), True
+    body = text[end + 4:].lstrip("\n")
+    try:
+        data = yaml.safe_load(text[4:end])
+    except yaml.YAMLError:
+        return {}, body, False
+    if data is None:
+        return {}, body, True  # empty frontmatter block is valid
+    if not isinstance(data, dict):
+        return {}, body, False  # frontmatter must be a mapping
+    return data, body, True
 
 
 def is_empty(v) -> bool:

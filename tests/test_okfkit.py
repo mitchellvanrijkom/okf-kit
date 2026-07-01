@@ -47,6 +47,16 @@ class TestParse(unittest.TestCase):
         fm, _, _ = okfkit.parse("---\ntags: [a, b, c]\ntype: X\n---\n")
         self.assertEqual(fm["tags"], ["a", "b", "c"])
 
+    def test_nested_yaml(self):
+        # the naive parser could not do this; PyYAML can
+        fm, _, ok = okfkit.parse("---\ntype: X\nmeta:\n  owner: team\n  ids: [1, 2]\n---\n")
+        self.assertTrue(ok)
+        self.assertEqual(fm["meta"], {"owner": "team", "ids": [1, 2]})
+
+    def test_malformed_yaml_is_not_ok(self):
+        fm, _, ok = okfkit.parse("---\ntype: [a, b\n---\nbody\n")  # unclosed flow sequence
+        self.assertFalse(ok)
+
 
 class TestIsEmpty(unittest.TestCase):
     def test_empty_values(self):

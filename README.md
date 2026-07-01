@@ -18,20 +18,20 @@ anywhere (including WSL), and never puts a derived artifact in your git history.
 
 ## Install
 
-Requires Python 3.10+. Zero runtime dependencies (standard library only).
+Requires Python 3.10+. One dependency: [PyYAML](https://pyyaml.org/) (robust frontmatter parsing).
 
-Run it directly, no install:
-
-```bash
-python3 okfkit.py --help
-```
-
-Or install the `okfkit` CLI:
+Install the `okfkit` CLI (PyYAML is pulled in automatically):
 
 ```bash
 uv tool install .          # from a clone
 pipx install .             # alternative
 uvx --from git+https://github.com/mitchellvanrijkom/okf-kit okfkit --help   # no clone
+```
+
+Or run from a clone after `pip install pyyaml`:
+
+```bash
+python3 okfkit.py --help
 ```
 
 ## Commands
