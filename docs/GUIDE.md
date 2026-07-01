@@ -101,10 +101,18 @@ Cross-links are standard markdown links, bundle-relative and absolute: `/concept
 
 ---
 
-## 4. Produce: `structure`
+## 4. Produce
 
-Turn a folder of raw sources (`raw/`) — meeting transcripts, exported Confluence pages, Jira
-tickets — into OKF concept files. This is the only command that calls a model.
+Turn raw sources (`raw/`) — meeting transcripts, exported Confluence pages, Jira tickets — into OKF
+concept files. There are **two ways**, pick whichever fits:
+
+| Way | How | When |
+|-----|-----|------|
+| **Agent harness** | The agent (Claude Code, opencode, …) structures the sources *itself, in context*, via the `okf-build` skill. No subprocess, no key. | You're already talking to an agent. |
+| **Standalone provider** | `okfkit structure --provider claude\|opencode\|openai` — the CLI drives one LLM worker. | Headless: a cron job or script with no agent. |
+
+Both write the same OKF concepts. Below is the **standalone provider** path; the agent-harness path
+lives in the `okf-build` skill (§13).
 
 No API key needed. `structure` drives an LLM backend you already have logged in:
 
